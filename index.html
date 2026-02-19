@@ -3,446 +3,322 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Морской Бой для Telegram</title>
+    <title>Морской Бой</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        * {
-            box-sizing: border-box;
-            user-select: none;
-        }
-        
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            background: var(--tg-theme-bg-color, #1a1a2e);
-            color: var(--tg-theme-text-color, white);
-            margin: 0;
-            padding: 10px;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-        
-        h1 {
-            font-size: 24px;
-            margin: 10px 0;
-            color: #4ec0e9;
-            text-shadow: 0 0 10px rgba(78, 192, 233, 0.5);
-        }
-        
-        .game-container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 20px;
-            flex: 1;
-        }
-        
-        .board-container {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 20px;
-        }
-        
-        .board {
-            background: #0f4c81;
-            padding: 10px;
-            border-radius: 10px;
-            box-shadow: 0 0 20px rgba(0,0,0,0.5);
-        }
-        
-        .board h2 {
-            margin: 0 0 10px 0;
-            font-size: 18px;
-            color: #ffd700;
-        }
-        
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(10, 1fr);
-            gap: 2px;
-            width: min(300px, 90vw);
-            aspect-ratio: 1;
-        }
-        
-        .cell {
-            background: #2a6f9c;
-            border: 1px solid #4ec0e9;
-            aspect-ratio: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
-            font-weight: bold;
-            color: white;
-            cursor: pointer;
-            border-radius: 4px;
-            transition: 0.2s;
-        }
-        
-        .cell.enemy:hover {
-            background: #ff6b6b;
-            transform: scale(0.95);
-        }
-        
-        .cell.ship {
-            background: #4a4a4a;
-            border-color: #888;
-        }
-        
-        .cell.hit {
-            background: #ff4444;
-            border-color: #ff0000;
-            animation: boom 0.3s;
-        }
-        
-        .cell.miss {
-            background: #87CEEB;
-            border-color: #4682B4;
-        }
-        
-        .cell.miss::after {
-            content: "•";
-            color: #333;
-            font-size: 24px;
-        }
-        
-        @keyframes boom {
-            0% { transform: scale(1); background: white; }
-            50% { transform: scale(1.2); background: #ffaa00; }
-            100% { transform: scale(1); background: #ff4444; }
-        }
-        
-        .status {
-            background: #16213e;
-            padding: 15px;
-            border-radius: 10px;
-            margin: 10px 0;
-            font-size: 18px;
-            border: 1px solid #4ec0e9;
-        }
-        
-        .ships-left {
-            display: flex;
-            gap: 10px;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
-        
-        .ship-icon {
-            width: 30px;
-            height: 30px;
-            background: #4a4a4a;
-            border: 2px solid #888;
-            border-radius: 5px;
-            position: relative;
-        }
-        
-        .ship-icon.destroyed {
-            background: #ff4444;
-            border-color: #ff0000;
-            opacity: 0.5;
-        }
-        
-        button {
-            background: var(--tg-theme-button-color, #4ec0e9);
-            color: var(--tg-theme-button-text-color, white);
-            border: none;
-            padding: 12px 30px;
-            border-radius: 25px;
-            font-size: 18px;
-            font-weight: bold;
-            margin: 10px;
-            cursor: pointer;
-            box-shadow: 0 4px 0 #2a6f9c;
-            transition: 0.1s;
-        }
-        
-        button:active {
-            transform: translateY(4px);
-            box-shadow: none;
-        }
-        
-        .coordinates {
-            font-size: 14px;
-            color: #aaa;
-            margin: 5px 0;
-        }
+        body { font-family: Arial; text-align: center; background: #0a1f44; color: white; margin: 0; padding: 10px; }
+        h1 { color: #4ec0e9; font-size: 28px; }
+        .setup-screen, .game-screen { display: flex; flex-direction: column; align-items: center; }
+        .board-container { background: #0f4c81; padding: 15px; border-radius: 15px; margin: 10px; }
+        .grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px; width: min(330px, 95vw); aspect-ratio: 1; }
+        .cell { background: #2a6f9c; border: 1px solid #4ec0e9; aspect-ratio: 1; border-radius: 4px; cursor: pointer; }
+        .cell.setup-ship { background: #4a4a4a; border-color: #ffd700; }
+        .cell.enemy:hover { background: #ff6b6b; }
+        .cell.ship { background: #4a4a4a; }
+        .cell.hit { background: #ff4444 !important; }
+        .cell.miss { background: #87CEEB !important; }
+        .status-panel { background: #16213e; padding: 12px; border-radius: 12px; margin: 10px; width: 100%; max-width: 350px; }
+        button { background: #4ec0e9; color: white; border: none; padding: 12px 25px; border-radius: 25px; font-size: 16px; margin: 5px; cursor: pointer; box-shadow: 0 4px 0 #2a6f9c; }
+        button:active { transform: translateY(4px); box-shadow: none; }
+        .hidden { display: none !important; }
+        .ships-list { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; margin: 10px 0; }
+        .ship-item { background: #2c3e50; padding: 5px 10px; border-radius: 15px; font-size: 14px; }
+        .ship-item.placed { opacity: 0.5; text-decoration: line-through; }
+        .ship-item.current { border: 2px solid gold; }
     </style>
 </head>
 <body>
     <h1>⚓ МОРСКОЙ БОЙ ⚓</h1>
     
-    <div class="game-container">
-        <div class="status" id="statusText">
-            🎯 Твой ход! Выбери клетку
+    <div id="setupScreen" class="setup-screen">
+        <div class="status-panel">
+            <div id="setupStatus">Расставь корабли</div>
+            <div class="ships-list" id="shipsList"></div>
         </div>
-        
         <div class="board-container">
-            <!-- Поле игрока -->
-            <div class="board">
-                <h2>Твой флот</h2>
-                <div class="grid" id="playerBoard"></div>
-            </div>
-            
-            <!-- Поле врага -->
-            <div class="board">
-                <h2>Враг</h2>
-                <div class="grid" id="enemyBoard"></div>
-            </div>
+            <div class="grid" id="setupBoard"></div>
         </div>
-        
-        <div class="ships-left" id="shipsCount">
-            <div class="ship-icon" id="ship4"></div>
-            <div class="ship-icon" id="ship3_1"></div>
-            <div class="ship-icon" id="ship3_2"></div>
-            <div class="ship-icon" id="ship2_1"></div>
-            <div class="ship-icon" id="ship2_2"></div>
-            <div class="ship-icon" id="ship2_3"></div>
-            <div class="ship-icon" id="ship1_1"></div>
-            <div class="ship-icon" id="ship1_2"></div>
-            <div class="ship-icon" id="ship1_3"></div>
-            <div class="ship-icon" id="ship1_4"></div>
+        <div>
+            <button id="randomBtn">🎲 Случайно</button>
+            <button id="resetBtn">🔄 Сброс</button>
+            <button id="startGameBtn" disabled>⚔️ Старт</button>
         </div>
-        
-        <button onclick="newGame()">🔄 Новая игра</button>
     </div>
-
-    <script>
-        Telegram.WebApp.ready();
-        Telegram.WebApp.expand();
+    
+    <div id="gameScreen" class="game-screen hidden">
+        <div class="status-panel" id="gameStatus">Твой ход!</div>
+        <div class="board-container">
+            <div class="grid" id="enemyBoard"></div>
+        </div>
+        <div class="board-container">
+            <div class="grid" id="playerBoard"></div>
+        </div>
+        <button id="newGameBtn">🔄 Новая игра</button>
+    </div><script>
+    Telegram.WebApp.ready();
+    Telegram.WebApp.expand();
+    
+    // Данные
+    const SHIP_SIZES = [4,3,3,2,2,2,1,1,1,1];
+    const SHIP_NAMES = ['Линкор','Крейсер','Крейсер','Эсминец','Эсминец','Эсминец','Катер','Катер','Катер','Катер'];
+    
+    let currentShip = 0;
+    let placed = [];
+    let setupBoard = new Array(100).fill(null);
+    let playerShips = [], enemyShips = [], playerHits = [], enemyHits = [];
+    let gameOver = false, playerTurn = true;
+    
+    function renderSetup() {
+        let html = '';
+        for(let i=0;i<100;i++) {
+            let cls = 'cell' + (setupBoard[i]==='ship' ? ' setup-ship' : '');
+            html += `<div class="${cls}" onclick="tryPlace(${i})"></div>`;
+        }
+        document.getElementById('setupBoard').innerHTML = html;
         
-        let playerBoard, enemyBoard;
-        let playerShips, enemyShips;
-        let playerHits, enemyHits;
-        let gameOver = false;
-        let playerTurn = true;
+        let listHtml = '';
+        for(let i=0;i<SHIP_SIZES.length;i++) {
+            listHtml += `<div class="ship-item ${placed.includes(i)?'placed':''} ${i===currentShip && !placed.includes(i)?'current':''}">${SHIP_NAMES[i]} (${SHIP_SIZES[i]})</div>`;
+        }
+        document.getElementById('shipsList').innerHTML = listHtml;
+        document.getElementById('startGameBtn').disabled = placed.length < SHIP_SIZES.length;
+    }
+    
+    function tryPlace(index) {
+        if(currentShip >= SHIP_SIZES.length) return;
+        let x = index%10, y = Math.floor(index/10), size = SHIP_SIZES[currentShip];
+        let positions = [];
         
-        // Инициализация игры
-        function initGame() {
-            playerShips = [];
-            enemyShips = [];
-            playerHits = new Array(100).fill(null);
-            enemyHits = new Array(100).fill(null);
-            
-            // Расставляем корабли игрока (фиксированно для простоты)
-            playerShips = [
-                [0,1,2,3], // 4-палубный
-                [10,11,12], // 3-палубный
-                [20,21,22], // 3-палубный
-                [30,31], // 2-палубный
-                [40,41], // 2-палубный
-                [50,51], // 2-палубный
-                [60], // 1-палубный
-                [70], // 1-палубный
-                [80], // 1-палубный
-                [90]  // 1-палубный
-            ];
-            
-            // Расставляем корабли врага (случайно)
-            enemyShips = generateEnemyShips();
-            
-            renderBoards();
-            updateStatus();
-            updateShipsIcons();
+        if(x+size <= 10) {
+            let pos = [];
+            for(let i=0;i<size;i++) pos.push(y*10 + (x+i));
+            if(canPlace(pos)) positions = pos;
+        }
+        if(positions.length===0 && y+size <= 10) {
+            let pos = [];
+            for(let i=0;i<size;i++) pos.push((y+i)*10 + x);
+            if(canPlace(pos)) positions = pos;
         }
         
-        function generateEnemyShips() {
-            // Упрощенная генерация для демо
-            return [
-                [5,6,7,8],
-                [15,16,17],
-                [25,26,27],
-                [35,36],
-                [45,46],
-                [55,56],
-                [65],
-                [75],
-                [85],
-                [95]
-            ];
-        }
-        
-        function renderBoards() {
-            // Отрисовка поля игрока
-            let playerHtml = '';
-            for (let i = 0; i < 100; i++) {
-                let cellClass = 'cell';
-                
-                // Проверяем, есть ли здесь корабль игрока
-                let isShip = playerShips.some(ship => ship.includes(i));
-                
-                if (isShip) cellClass += ' ship';
-                if (enemyHits[i] === 'hit') cellClass += ' hit';
-                if (enemyHits[i] === 'miss') cellClass += ' miss';
-                
-                playerHtml += `<div class="${cellClass}" data-index="${i}"></div>`;
+        if(positions.length) {
+            positions.forEach(p => setupBoard[p]='ship');
+            placed.push(currentShip);
+            while(currentShip < SHIP_SIZES.length && placed.includes(currentShip)) currentShip++;
+            renderSetup();
+        } else alert('Нельзя поставить!');
+    }
+    
+    function canPlace(pos) {
+        for(let p of pos) if(setupBoard[p]==='ship') return false;
+        for(let p of pos) {
+            let x=p%10, y=Math.floor(p/10);
+            for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++) {
+                let nx=x+dx, ny=y+dy;
+                if(nx>=0&&nx<10&&ny>=0&&ny<10) {
+                    let n = ny*10 + nx;
+                    if(setupBoard[n]==='ship' && !pos.includes(n)) return false;
+                }
             }
-            document.getElementById('playerBoard').innerHTML = playerHtml;
-            
-            // Отрисовка поля врага
-            let enemyHtml = '';
-            for (let i = 0; i < 100; i++) {
-                let cellClass = 'cell enemy';
-                if (playerHits[i] === 'hit') cellClass += ' hit';
-                if (playerHits[i] === 'miss') cellClass += ' miss';
-                
-                enemyHtml += `<div class="${cellClass}" data-index="${i}" onclick="playerMove(${i})"></div>`;
-            }
-            document.getElementById('enemyBoard').innerHTML = enemyHtml;
         }
-        
-        function playerMove(index) {
-            if (!playerTurn || gameOver || playerHits[index]) return;
-            
-            // Проверяем, есть ли здесь корабль врага
-            let hit = false;
-            let shipIndex = -1;
-            
-            for (let i = 0; i < enemyShips.length; i++) {
-                if (enemyShips[i].includes(index)) {
-                    hit = true;
-                    shipIndex = i;
+        return true;
+    }
+    
+    function randomPlace() {
+        setupBoard = new Array(100).fill(null);
+        placed = [];
+        for(let size of SHIP_SIZES) {
+            let attempts = 0;
+            while(attempts < 500) {
+                attempts++;
+                let dir = Math.floor(Math.random()*2);
+                let x = Math.floor(Math.random()*(dir===0?10-size:10));
+                let y = Math.floor(Math.random()*(dir===1?10-size:10));
+                let pos = [];
+                if(dir===0) for(let i=0;i<size;i++) pos.push(y*10 + (x+i));
+                else for(let i=0;i<size;i++) pos.push((y+i)*10 + x);
+                
+                if(canPlace(pos)) {
+                    pos.forEach(p => setupBoard[p]='ship');
                     break;
                 }
             }
-            
-            if (hit) {
-                playerHits[index] = 'hit';
-                // Проверяем, убит ли корабль
-                let ship = enemyShips[shipIndex];
-                let allHit = ship.every(cell => playerHits[cell] === 'hit');
-                
-                if (allHit) {
-                    // Отмечаем клетки вокруг убитого корабля
-                    ship.forEach(cell => {
-                        markAround(cell, playerHits, 'miss');
-                    });
-                    
-                    // Убираем корабль из списка
-                    enemyShips.splice(shipIndex, 1);
-                    
-                    // Проверяем победу
-                    if (enemyShips.length === 0) {
-                        gameOver = true;
-                        document.getElementById('statusText').innerHTML = '🏆 ТЫ ПОБЕДИЛ! 🏆';
-                        return;
+        }
+        // Отмечаем все как расставленные
+        for(let i=0;i<SHIP_SIZES.length;i++) placed.push(i);
+        currentShip = SHIP_SIZES.length;
+        renderSetup();
+    }
+    
+    function startGame() {
+        // Преобразуем setupBoard в playerShips
+        playerShips = [];
+        let visited = new Array(100).fill(false);
+        for(let i=0;i<100;i++) {
+            if(setupBoard[i]==='ship' && !visited[i]) {
+                let ship = [i];
+                visited[i]=true;
+                let x=i%10, y=Math.floor(i/10);
+                // Горизонтально
+                for(let dx=1;dx<4;dx++) {
+                    let n = y*10 + (x+dx);
+                    if(x+dx<10 && setupBoard[n]==='ship' && !visited[n]) {
+                        ship.push(n);
+                        visited[n]=true;
+                    } else break;
+                }
+                if(ship.length===1) {
+                    for(let dy=1;dy<4;dy++) {
+                        let n = (y+dy)*10 + x;
+                        if(y+dy<10 && setupBoard[n]==='ship' && !visited[n]) {
+                            ship.push(n);
+                            visited[n]=true;
+                        } else break;
                     }
                 }
+                playerShips.push(ship);
+            }
+        }
+        
+        // Враг
+        enemyShips = [];
+        let enemyBoard = new Array(100).fill(null);
+        for(let size of SHIP_SIZES) {
+            let attempts=0;
+            while(attempts<500) {
+                attempts++;
+                let dir=Math.floor(Math.random()*2);
+                let x=Math.floor(Math.random()*(dir===0?10-size:10));
+                let y=Math.floor(Math.random()*(dir===1?10-size:10));
+                let pos=[];
+                if(dir===0) for(let i=0;i<size;i++) pos.push(y*10 + (x+i));
+                else for(let i=0;i<size;i++) pos.push((y+i)*10 + x);
                 
-                renderBoards();
-                updateShipsIcons();
+                let valid=true;
+                for(let p of pos) if(enemyBoard[p]==='ship') valid=false;
+                if(valid) {
+                    pos.forEach(p => enemyBoard[p]='ship');
+                    enemyShips.push(pos);
+                    break;
+                }
+            }
+        }
+        
+        playerHits = new Array(100).fill(null);
+        enemyHits = new Array(100).fill(null);
+        gameOver=false; playerTurn=true;
+        
+        document.getElementById('setupScreen').classList.add('hidden');
+        document.getElementById('gameScreen').classList.remove('hidden');
+        renderGame();
+    }
+    
+    function renderGame() {
+        let playerHtml='', enemyHtml='';
+        for(let i=0;i<100;i++) {
+            let isShip = playerShips.some(s=>s.includes(i));
+            playerHtml += `<div class="cell ${isShip?'ship':''} ${enemyHits[i]==='hit'?'hit':''} ${enemyHits[i]==='miss'?'miss':''}"></div>`;
+            
+            let canShoot = !playerHits[i] && !gameOver && playerTurn;
+            enemyHtml += `<div class="cell enemy ${playerHits[i]==='hit'?'hit':''} ${playerHits[i]==='miss'?'miss':''}" onclick="${canShoot?`shoot(${i})`:''}"></div>`;
+        }
+        document.getElementById('playerBoard').innerHTML = playerHtml;
+        document.getElementById('enemyBoard').innerHTML = enemyHtml;
+    }        function shoot(index) {
+            if(!playerTurn || gameOver || playerHits[index]) return;
+            
+            let hit = false;
+            let shipIdx = -1;
+            for(let i=0;i<enemyShips.length;i++) {
+                if(enemyShips[i].includes(index)) { hit=true; shipIdx=i; break; }
+            }
+            
+            if(hit) {
+                playerHits[index] = 'hit';
+                let ship = enemyShips[shipIdx];
+                if(ship.every(cell => playerHits[cell]==='hit')) {
+                    ship.forEach(cell => {
+                        let x=cell%10, y=Math.floor(cell/10);
+                        for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++) {
+                            let nx=x+dx, ny=y+dy;
+                            if(nx>=0&&nx<10&&ny>=0&&ny<10) {
+                                let n = ny*10 + nx;
+                                if(!playerHits[n]) playerHits[n] = 'miss';
+                            }
+                        }
+                    });
+                    enemyShips.splice(shipIdx,1);
+                    if(enemyShips.length===0) {
+                        gameOver=true;
+                        document.getElementById('gameStatus').innerHTML = 'Ты победил!';
+                    }
+                }
+                renderGame();
             } else {
                 playerHits[index] = 'miss';
-                renderBoards();
+                renderGame();
                 playerTurn = false;
-                document.getElementById('statusText').innerHTML = '🤖 Ход врага...';
-                
-                // Ход врага
+                document.getElementById('gameStatus').innerHTML = 'Ход врага...';
                 setTimeout(enemyMove, 500);
             }
         }
         
         function enemyMove() {
-            if (gameOver) return;
+            if(gameOver) return;
             
-            // Простой AI - случайный выстрел
             let available = [];
-            for (let i = 0; i < 100; i++) {
-                if (!enemyHits[i]) available.push(i);
+            for(let i=0;i<100;i++) if(!enemyHits[i]) available.push(i);
+            let index = available[Math.floor(Math.random()*available.length)];
+            
+            let hit = false;
+            let shipIdx = -1;
+            for(let i=0;i<playerShips.length;i++) {
+                if(playerShips[i].includes(index)) { hit=true; shipIdx=i; break; }
             }
             
-            if (available.length > 0) {
-                let index = available[Math.floor(Math.random() * available.length)];
-                let hit = false;
-                let shipIndex = -1;
-                
-                for (let i = 0; i < playerShips.length; i++) {
-                    if (playerShips[i].includes(index)) {
-                        hit = true;
-                        shipIndex = i;
-                        break;
-                    }
-                }
-                
-                if (hit) {
-                    enemyHits[index] = 'hit';
-                    
-                    // Проверяем, убит ли корабль игрока
-                    let ship = playerShips[shipIndex];
-                    let allHit = ship.every(cell => enemyHits[cell] === 'hit');
-                    
-                    if (allHit) {
-                        ship.forEach(cell => {
-                            markAround(cell, enemyHits, 'miss');
-                        });
-                        playerShips.splice(shipIndex, 1);
-                        
-                        if (playerShips.length === 0) {
-                            gameOver = true;
-                            renderBoards();
-                            document.getElementById('statusText').innerHTML = '💔 Ты проиграл...';
-                            return;
+            if(hit) {
+                enemyHits[index] = 'hit';
+                let ship = playerShips[shipIdx];
+                if(ship.every(cell => enemyHits[cell]==='hit')) {
+                    ship.forEach(cell => {
+                        let x=cell%10, y=Math.floor(cell/10);
+                        for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++) {
+                            let nx=x+dx, ny=y+dy;
+                            if(nx>=0&&nx<10&&ny>=0&&ny<10) {
+                                let n = ny*10 + nx;
+                                if(!enemyHits[n]) enemyHits[n] = 'miss';
+                            }
                         }
+                    });
+                    playerShips.splice(shipIdx,1);
+                    if(playerShips.length===0) {
+                        gameOver=true;
+                        document.getElementById('gameStatus').innerHTML = 'Ты проиграл';
                     }
-                } else {
-                    enemyHits[index] = 'miss';
                 }
-                
-                renderBoards();
-                updateShipsIcons();
+            } else {
+                enemyHits[index] = 'miss';
             }
             
+            renderGame();
             playerTurn = true;
-            document.getElementById('statusText').innerHTML = '🎯 Твой ход!';
-        }
-        
-        function markAround(index, hitsArray, value) {
-            let x = index % 10;
-            let y = Math.floor(index / 10);
-            
-            for (let dy = -1; dy <= 1; dy++) {
-                for (let dx = -1; dx <= 1; dx++) {
-                    let nx = x + dx;
-                    let ny = y + dy;
-                    if (nx >= 0 && nx < 10 && ny >= 0 && ny < 10) {
-                        let i = ny * 10 + nx;
-                        if (!hitsArray[i]) {
-                            hitsArray[i] = value;
-                        }
-                    }
-                }
-            }
-        }
-        
-        function updateShipsIcons() {
-            // Обновляем иконки кораблей
-            for (let i = 0; i < 10; i++) {
-                let icon = document.getElementById(`ship${i+1}`);
-                if (icon) {
-                    if (i < playerShips.length) {
-                        icon.className = 'ship-icon';
-                    } else {
-                        icon.className = 'ship-icon destroyed';
-                    }
-                }
-            }
-        }
-        
-        function updateStatus() {
-            let playerCount = playerShips.length;
-            let enemyCount = enemyShips.length;
-            document.getElementById('statusText').innerHTML = 
-                `🎯 Твой ход! Осталось: у тебя ${playerCount}, у врага ${enemyCount}`;
+            document.getElementById('gameStatus').innerHTML = 'Твой ход!';
         }
         
         function newGame() {
-            initGame();
+            document.getElementById('setupScreen').classList.remove('hidden');
+            document.getElementById('gameScreen').classList.add('hidden');
+            setupBoard = new Array(100).fill(null);
+            placed = [];
+            currentShip = 0;
+            renderSetup();
         }
         
-        // Запускаем игру
-        initGame();
+        document.getElementById('randomBtn').onclick = randomPlace;
+        document.getElementById('resetBtn').onclick = () => { setupBoard=new Array(100).fill(null); placed=[]; currentShip=0; renderSetup(); };
+        document.getElementById('startGameBtn').onclick = startGame;
+        document.getElementById('newGameBtn').onclick = newGame;
+        
+        renderSetup();
     </script>
 </body>
-  </html>
+</html>
