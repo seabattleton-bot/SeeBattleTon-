@@ -2,148 +2,191 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Sea Battle</title>
+<title>Sea Battle Classic</title>
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <style>
-body {
-    background:#0f172a;
-    color:white;
-    text-align:center;
-    font-family:Arial;
-}
-.board {
-    display:grid;
-    grid-template-columns:repeat(10,30px);
-    gap:2px;
-    justify-content:center;
-    margin:10px;
-}
-.cell {
-    width:30px;
-    height:30px;
-    background:#1e293b;
-}
-.ship { background:#475569; }
-.hit { background:red; }
-.miss { background:#38bdf8; }
-button { padding:10px 20px; margin:10px; }
+body { background:#0f172a; color:white; text-align:center; font-family:Arial;}
+button { padding:8px 15px; margin:5px; border:none; border-radius:6px; background:#2563eb; color:white; cursor:pointer; }
+button:hover{opacity:.8;}
+.board { display:grid; grid-template-columns:repeat(10,30px); gap:2px; justify-content:center; margin:10px; }
+.cell { width:30px; height:30px; background:#1e293b; cursor:pointer; }
+.cell.ship{background:#475569;}
+.cell.hit{background:red;}
+.cell.miss{background:#38bdf8;}
 </style>
 </head>
 <body>
 
-<h2>Sea Battle Online</h2>
-<button onclick="createRoom()">Создать игру</button>
+<h2>Sea Battle Classic</h2>
+
+<button onclick="autoPlace()">Авто расстановка</button>
+<button onclick="startGame()">Начать бой</button>
+<button onclick="rotateShip()">Поворот R</button>
+<div id="status">Расставьте корабли</div>
 <div id="link"></div>
 
-<div id="status"></div>
-
-<div style="display:flex;justify-content:center;gap:30px;flex-wrap:wrap;">
-    <div>
-        <h3>Твое поле</h3>
-        <div id="playerBoard" class="board"></div>
-    </div>
-    <div>
-        <h3>Поле врага</h3>
-        <div id="enemyBoard" class="board"></div>
-    </div>
+<div style="display:flex; justify-content:center; gap:30px; flex-wrap:wrap;">
+  <div>
+    <h3>Твое поле</h3>
+    <div id="playerBoard" class="board"></div>
+  </div>
+  <div>
+    <h3>Поле врага</h3>
+    <div id="enemyBoard" class="board"></div>
+  </div>
 </div>
 
 <script>
 const socket = io();
 let roomId = null;
-let myTurn = false;
 let myId = null;
+let myTurn = false;
 let boards = {};
+let horizontal = true;
 
-function createBoardHTML(element, clickable=false) {
-    element.innerHTML = "";
-    for(let r=0;r<10;r++){
-        for(let c=0;c<10;c++){
-            const cell = document.createElement("div");
-            cell.className="cell";
-            cell.dataset.row=r;
-            cell.dataset.col=c;
+// Корабли: 4,3,3,2,2,2,1,1,1,1
+const ships = [4,3,3,2,2,2,1,1,1,1];
+let placingIndex = 0;
 
-            if(clickable){
-                cell.onclick=()=>attack(r,c);
-            }
+// Создаем поле 10x10
+function createEmptyBoard() {
+  return Array.from({length:10},()=>Array.from({length:10},()=>({ship:false,hit:false})));
+}
 
-            element.appendChild(cell);
-        }
+let playerBoardData = createEmptyBoard();
+let enemyBoardData = createEmptyBoard();
+
+// --- UI ---
+const playerBoard = document.getElementById("playerBoard");
+const enemyBoard = document.getElementById("enemyBoard");
+const statusEl = document.getElementById("status");
+
+function createBoardHTML(element, clickable=false, isPlayer=false){
+  element.innerHTML="";
+  for(let r=0;r<10;r++){
+    for(let c=0;c<10;c++){
+      const cell = document.createElement("div");
+      cell.className="cell";
+      cell.dataset.row=r;
+      cell.dataset.col=c;
+
+      if(clickable){
+        cell.onclick=()=>{ if(isPlayer) placeShip(r,c); else attack(r,c); }
+      }
+
+      element.appendChild(cell);
     }
+  }
 }
 
 function renderBoard(board, element, showShips=false){
-    const cells = element.children;
-    for(let r=0;r<10;r++){
-        for(let c=0;c<10;c++){
-            const index = r*10+c;
-            const cell = cells[index];
-            const data = board[r][c];
-
-            cell.className="cell";
-
-            if(data.ship && showShips)
-                cell.classList.add("ship");
-
-            if(data.hit && data.ship)
-                cell.classList.add("hit");
-
-            if(data.hit && !data.ship)
-                cell.classList.add("miss");
-        }
+  const cells = element.children;
+  for(let r=0;r<10;r++){
+    for(let c=0;c<10;c++){
+      const cell = cells[r*10+c];
+      const data = board[r][c];
+      cell.className="cell";
+      if(data.ship && showShips) cell.classList.add("ship");
+      if(data.hit && data.ship) cell.classList.add("hit");
+      if(data.hit && !data.ship) cell.classList.add("miss");
     }
+  }
 }
 
-function createRoom(){
-    socket.emit("createRoom");
+// --- Расстановка кораблей ---
+function canPlace(board,row,col,length,horizontal){
+  for(let i=0;i<length;i++){
+    let r=row+(horizontal?0:i);
+    let c=col+(horizontal?i:0);
+    if(r>=10||c>=10) return false;
+    for(let dr=-1;dr<=1;dr++){
+      for(let dc=-1;dc<=1;dc++){
+        let nr=r+dr, nc=c+dc;
+        if(nr>=0 && nr<10 && nc>=0 && nc<10 && board[nr][nc].ship) return false;
+      }
+    }
+  }
+  return true;
 }
 
-socket.on("connect", ()=>{
-    myId = socket.id;
-});
-
-socket.on("roomCreated", id=>{
-    roomId = id;
-    const url = location.origin + "?room=" + id;
-    document.getElementById("link").innerHTML =
-        "<p>Отправь другу:</p><input value='"+url+"' style='width:95%'>";
-});
-
-const params = new URLSearchParams(location.search);
-const room = params.get("room");
-if(room){
-    roomId = room;
-    socket.emit("joinRoom", room);
+function placeShip(row,col){
+  if(placingIndex>=ships.length) return;
+  let len = ships[placingIndex];
+  if(!canPlace(playerBoardData,row,col,len,horizontal)) return;
+  for(let i=0;i<len;i++){
+    let r=row+(horizontal?0:i);
+    let c=col+(horizontal?i:0);
+    playerBoardData[r][c].ship=true;
+  }
+  placingIndex++;
+  renderBoard(playerBoardData,playerBoard,true);
+  if(placingIndex===ships.length) statusEl.innerText="Можно начать бой";
 }
 
-socket.on("startGame", ()=>{
-    document.getElementById("status").innerText="Игра началась!";
-});
+function autoPlace(){
+  playerBoardData=createEmptyBoard();
+  placingIndex=0;
+  for(let ship of ships){
+    let placed=false;
+    while(!placed){
+      let r=Math.floor(Math.random()*10);
+      let c=Math.floor(Math.random()*10);
+      horizontal=Math.random()<0.5;
+      if(canPlace(playerBoardData,r,c,ship,horizontal)){
+        for(let i=0;i<ship;i++){
+          let rr=r+(horizontal?0:i);
+          let cc=c+(horizontal?i:0);
+          playerBoardData[rr][cc].ship=true;
+        }
+        placed=true;
+      }
+    }
+  }
+  renderBoard(playerBoardData,playerBoard,true);
+  placingIndex=ships.length;
+  statusEl.innerText="Можно начать бой";
+}
 
-socket.on("update", data=>{
-    boards = data.boards;
-    myTurn = data.turn === myId;
+function rotateShip(){ horizontal=!horizontal; }
 
-    renderBoard(boards[myId], playerBoard, true);
-
-    const opponent = Object.keys(boards).find(id=>id!==myId);
-    renderBoard(boards[opponent], enemyBoard, false);
-
-    document.getElementById("status").innerText =
-        myTurn ? "Твой ход" : "Ход соперника";
-});
+// --- Ходы ---
+function startGame(){
+  if(placingIndex<ships.length){ alert("Расставьте все корабли!"); return;}
+  socket.emit("placeShips",{roomId,board:playerBoardData});
+  statusEl.innerText="Ждем второго игрока...";
+}
 
 function attack(r,c){
-    if(!myTurn) return;
-    socket.emit("move", {roomId,row:r,col:c});
+  if(!myTurn) return;
+  socket.emit("move",{roomId,row:r,col:c});
 }
 
-createBoardHTML(playerBoard);
-createBoardHTML(enemyBoard,true);
+// --- WebSocket ---
+socket.on("connect",()=>{ myId = socket.id; });
+socket.on("roomCreated",id=>{
+  roomId=id;
+  const url=location.origin+"?room="+id;
+  document.getElementById("link").innerHTML="<p>Отправь другу:</p><input value='"+url+"' style='width:95%'>";
+});
+const params = new URLSearchParams(location.search);
+if(params.get("room")){ roomId=params.get("room"); socket.emit("joinRoom",roomId);}
+socket.on("startGame",()=>{
+  statusEl.innerText="Игра началась!";
+});
+socket.on("update",data=>{
+  boards=data.boards;
+  myTurn=data.turn===myId;
+  renderBoard(boards[myId],playerBoard,true);
+  const opponent = Object.keys(boards).find(id=>id!==myId);
+  renderBoard(boards[opponent],enemyBoard,false);
+  statusEl.innerText = myTurn?"Твой ход":"Ход соперника";
+});
+
+// --- init ---
+createBoardHTML(playerBoard,true,true);
+createBoardHTML(enemyBoard,true,false);
 
 </script>
 
 </body>
-    </html>
-    
+</html>
