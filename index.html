@@ -1,140 +1,278 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
-    <meta charset="utf-8">
-    <title>Морской бой</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <style>
-        body { text-align: center; background: #0a1f44; color: white; font-family: Arial; }
-        .board { display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px; width: 300px; margin: 20px auto; }
-        .cell { aspect-ratio: 1; background: #2a6f9c; border: 1px solid #4ec0e9; cursor: pointer; }
-        .hit { background: #ff4444; }
-        .miss { background: #87CEEB; }
-        .ship { background: #4a4a4a; }
-        button { padding: 10px 20px; background: #4ec0e9; border: none; border-radius: 10px; margin: 5px; }
-    </style>
-</head>
-<body>
-    <h2>⚓ МОРСКОЙ БОЙ ⚓</h2>
-    <div id="status">Твой ход</div>
-    <div class="board" id="enemyBoard"></div>
-    <div class="board" id="playerBoard"></div>
-    <button onclick="newGame()">Новая игра</button>
+<meta charset="UTF-8">
+<title>Морской бой</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <script>
-        Telegram.WebApp.ready();
-        Telegram.WebApp.expand();
-
-        // Корабли
-        let playerShips = [[0,1,2,3],[10,11,12],[20,21,22],[30,31],[40,41],[50,51],[60],[70],[80],[90]];
-        let enemyShips = [[5,6,7,8],[15,16,17],[25,26,27],[35,36],[45,46],[55,56],[65],[75],[85],[95]];
-
-        let playerHits = new Array(100).fill(null); // выстрелы игрока по врагу
-        let enemyHits = new Array(100).fill(null);  // выстрелы врага по игроку
-        let playerTurn = true;
-        let gameOver = false;
-
-        function render() {
-            let playerHtml = '';
-            let enemyHtml = '';
-
-            for (let i = 0; i < 100; i++) {
-                // Своё поле (игрок)
-                let isPlayerShip = false;
-                for (let s of playerShips) if (s.includes(i)) isPlayerShip = true;
-                playerHtml += `<div class="cell ${isPlayerShip ? 'ship' : ''} ${enemyHits[i] === 'hit' ? 'hit' : ''} ${enemyHits[i] === 'miss' ? 'miss' : ''}"></div>`;
-
-                // Поле врага
-                let enemyClass = 'cell';
-                if (playerHits[i] === 'hit') enemyClass += ' hit';
-                else if (playerHits[i] === 'miss') enemyClass += ' miss';
-
-                let canShoot = playerTurn && !gameOver && !playerHits[i];
-                enemyHtml += `<div class="${enemyClass}" onclick="${canShoot ? `shoot(${i})` : ''}"></div>`;
-            }
-
-            document.getElementById('playerBoard').innerHTML = playerHtml;
-            document.getElementById('enemyBoard').innerHTML = enemyHtml;
-        }
-
-        
-        function enemyMove() {
-    if (gameOver) return;
-
-    let available = [];
-    for (let i = 0; i < 100; i++) {
-        if (!enemyHits[i]) available.push(i);
-    }
-    if (available.length === 0) return;
-
-    let index = available[Math.floor(Math.random() * available.length)];
-
-    let hit = false;
-    for (let ship of playerShips) {
-        if (ship.includes(index)) {
-            hit = true;
-            break;
-        }
-    }
-function shoot(index) {
-    if (!playerTurn || gameOver || playerHits[index]) return;
-
-    let hit = false;
-    for (let ship of enemyShips) {
-        if (ship.includes(index)) {
-            hit = true;
-            break;
-        }
-    }
-
-    playerHits[index] = hit ? 'hit' : 'miss';
-    render();
-
-    let allDestroyed = true;
-    for (let ship of enemyShips) {
-        for (let cell of ship) {
-            if (playerHits[cell] !== 'hit') {
-                allDestroyed = false;
-                break;
-            }
-        }
-    }
-
-    if (allDestroyed) {
-        gameOver = true;
-        document.getElementById('status').innerText = 'Ты выиграл!';
-        return;
-    }
-
-    playerTurn = false;
-    document.getElementById('status').innerText = 'Ход врага...';
-    setTimeout(enemyMove, 500);
-        }
-    enemyHits[index] = hit ? 'hit' : 'miss';
-    render();
-
-    // Проверка, все ли корабли игрока убиты
-    let allDestroyed = true;
-    for (let ship of playerShips) {
-        for (let cell of ship) {
-            if (enemyHits[cell] !== 'hit') {
-                allDestroyed = false;
-                break;
-            }
-        }
-    }
-
-    if (allDestroyed) {
-        gameOver = true;
-        document.getElementById('status').innerText = 'Ты проиграл...';
-        return;
-    }
-
-    playerTurn = true;
-    document.getElementById('status').innerText = 'Твой ход';
+<style>
+body{
+    font-family: Arial;
+    background:#0f172a;
+    color:white;
+    text-align:center;
 }
 
-        render();
-    </script>
+h1{margin:10px;}
+
+.boards{
+    display:flex;
+    justify-content:center;
+    gap:30px;
+    flex-wrap:wrap;
+}
+
+.board{
+    display:grid;
+    grid-template-columns:repeat(10,30px);
+    gap:2px;
+}
+
+.cell{
+    width:30px;
+    height:30px;
+    background:#1e293b;
+    cursor:pointer;
+}
+
+.cell.ship{background:#334155;}
+.cell.hit{background:#ef4444;}
+.cell.miss{background:#38bdf8;}
+
+button{
+    padding:8px 15px;
+    margin:5px;
+    border:none;
+    border-radius:6px;
+    background:#2563eb;
+    color:white;
+    cursor:pointer;
+}
+
+button:hover{opacity:.8}
+
+#status{margin:10px;font-weight:bold;}
+.hiddenShips .ship{background:#1e293b;}
+</style>
+</head>
+<body>
+
+<h1>⚓ Морской бой ⚓</h1>
+
+<div id="status">Расставьте корабли</div>
+
+<div>
+<button onclick="rotateShip()">Повернуть (R)</button>
+<button onclick="autoPlace(playerBoard)">Авто расстановка</button>
+<button onclick="startGame()">Начать бой</button>
+<button onclick="resetGame()">Новая игра</button>
+</div>
+
+<div class="boards">
+<div>
+<h3>Твое поле</h3>
+<div id="player" class="board"></div>
+</div>
+
+<div>
+<h3>Поле врага</h3>
+<div id="enemy" class="board hiddenShips"></div>
+</div>
+</div>
+
+<script>
+const size=10;
+const ships=[4,3,3,2,2,2,1,1,1,1];
+
+let playerBoard=[],enemyBoard=[];
+let placingIndex=0;
+let horizontal=true;
+let gameStarted=false;
+let playerTurn=true;
+
+function createBoard(board,element,isPlayer){
+    element.innerHTML="";
+    for(let i=0;i<size;i++){
+        board[i]=[];
+        for(let j=0;j<size;j++){
+            board[i][j]={ship:false,hit:false};
+            let cell=document.createElement("div");
+            cell.className="cell";
+            cell.dataset.row=i;
+            cell.dataset.col=j;
+            if(isPlayer)
+                cell.onclick=()=>placeShip(i,j);
+            else
+                cell.onclick=()=>attack(i,j);
+            element.appendChild(cell);
+        }
+    }
+}
+
+function canPlace(board,row,col,length){
+    for(let i=0;i<length;i++){
+        let r=row+(horizontal?0:i);
+        let c=col+(horizontal?i:0);
+        if(r>=size||c>=size||board[r][c].ship) return false;
+    }
+    return true;
+}
+
+function placeShip(row,col){
+    if(gameStarted) return;
+    let length=ships[placingIndex];
+    if(!length) return;
+
+    if(!canPlace(playerBoard,row,col,length)) return;
+
+    for(let i=0;i<length;i++){
+        let r=row+(horizontal?0:i);
+        let c=col+(horizontal?i:0);
+        playerBoard[r][c].ship=true;
+    }
+
+    placingIndex++;
+    render(playerBoard,playerDiv,true);
+
+    if(placingIndex===ships.length)
+        status.textContent="Можно начинать бой";
+}
+
+function autoPlace(board){
+    placingIndex=0;
+    createBoard(playerBoard,playerDiv,true);
+
+    ships.forEach(length=>{
+        let placed=false;
+        while(!placed){
+            horizontal=Math.random()<0.5;
+            let r=Math.floor(Math.random()*size);
+            let c=Math.floor(Math.random()*size);
+            if(canPlace(playerBoard,r,c,length)){
+                for(let i=0;i<length;i++){
+                    let rr=r+(horizontal?0:i);
+                    let cc=c+(horizontal?i:0);
+                    playerBoard[rr][cc].ship=true;
+                }
+                placed=true;
+            }
+        }
+    });
+
+    placingIndex=ships.length;
+    render(playerBoard,playerDiv,true);
+    status.textContent="Можно начинать бой";
+}
+
+function rotateShip(){ horizontal=!horizontal }
+
+function render(board,element,showShips){
+    [...element.children].forEach(cell=>{
+        let r=cell.dataset.row;
+        let c=cell.dataset.col;
+        let data=board[r][c];
+
+        cell.className="cell";
+        if(data.ship&&showShips) cell.classList.add("ship");
+        if(data.hit&&data.ship) cell.classList.add("hit");
+        if(data.hit&&!data.ship) cell.classList.add("miss");
+    });
+}
+
+function startGame(){
+    if(placingIndex!==ships.length) return alert("Расставьте все корабли!");
+    gameStarted=true;
+    status.textContent="Твой ход";
+    autoPlaceEnemy();
+}
+
+function autoPlaceEnemy(){
+    createBoard(enemyBoard,enemyDiv,false);
+    ships.forEach(length=>{
+        let placed=false;
+        while(!placed){
+            horizontal=Math.random()<0.5;
+            let r=Math.floor(Math.random()*size);
+            let c=Math.floor(Math.random()*size);
+            if(canPlace(enemyBoard,r,c,length)){
+                for(let i=0;i<length;i++){
+                    let rr=r+(horizontal?0:i);
+                    let cc=c+(horizontal?i:0);
+                    enemyBoard[rr][cc].ship=true;
+                }
+                placed=true;
+            }
+        }
+    });
+}
+
+function attack(r,c){
+    if(!gameStarted||!playerTurn) return;
+    let cell=enemyBoard[r][c];
+    if(cell.hit) return;
+
+    cell.hit=true;
+    render(enemyBoard,enemyDiv,false);
+
+    if(checkWin(enemyBoard)){
+        status.textContent="Ты победил!";
+        gameStarted=false;
+        return;
+    }
+
+    playerTurn=false;
+    status.textContent="Ход соперника...";
+    setTimeout(enemyMove,500);
+}
+
+function enemyMove(){
+    let r,c;
+    do{
+        r=Math.floor(Math.random()*size);
+        c=Math.floor(Math.random()*size);
+    }while(playerBoard[r][c].hit);
+
+    playerBoard[r][c].hit=true;
+    render(playerBoard,playerDiv,true);
+
+    if(checkWin(playerBoard)){
+        status.textContent="Ты проиграл!";
+        gameStarted=false;
+        return;
+    }
+
+    playerTurn=true;
+    status.textContent="Твой ход";
+}
+
+function checkWin(board){
+    for(let i=0;i<size;i++)
+        for(let j=0;j<size;j++)
+            if(board[i][j].ship&&!board[i][j].hit)
+                return false;
+    return true;
+}
+
+function resetGame(){
+    placingIndex=0;
+    gameStarted=false;
+    playerTurn=true;
+    status.textContent="Расставьте корабли";
+    createBoard(playerBoard,playerDiv,true);
+    createBoard(enemyBoard,enemyDiv,false);
+}
+
+const playerDiv=document.getElementById("player");
+const enemyDiv=document.getElementById("enemy");
+const status=document.getElementById("status");
+
+createBoard(playerBoard,playerDiv,true);
+createBoard(enemyBoard,enemyDiv,false);
+
+document.addEventListener("keydown",e=>{
+    if(e.key==="r"||e.key==="R") rotateShip();
+});
+</script>
+
 </body>
 </html>
