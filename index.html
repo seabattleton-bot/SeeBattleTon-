@@ -57,90 +57,82 @@
             document.getElementById('enemyBoard').innerHTML = enemyHtml;
         }
 
-        function shoot(index) {
-            if (!playerTurn || gameOver || playerHits[index]) return;
-
-            // Проверяем попадание
-            let hit = false;
-            for (let ship of enemyShips) {
-                if (ship.includes(index)) {
-                    hit = true;
-                    break;
-                }
-            }
-
-            playerHits[index] = hit ? 'hit' : 'miss';
-            render();
-
-            // Проверка победы игрока
-            let allDestroyed = true;
-            for (let ship of enemyShips) {
-                for (let cell of ship) {
-                    if (playerHits[cell] !== 'hit') allDestroyed = false;
-                }
-            }
-            if (allDestroyed) {
-                gameOver = true;
-                document.getElementById('status').innerText = 'Ты выиграл!';
-                return;
-            }
-
-            // Ход врага
-            playerTurn = false;
-            document.getElementById('status').innerText = 'Ход врага...';
-            setTimeout(enemyMove, 500);
-        }
-
+        
         function enemyMove() {
-            if (gameOver) return;
+    if (gameOver) return;
 
-            // Выбираем случайную неподбитую клетку
-            let available = [];
-            for (let i = 0; i < 100; i++) {
-                if (!enemyHits[i]) available.push(i);
-            }
-            if (available.length === 0) return;
+    let available = [];
+    for (let i = 0; i < 100; i++) {
+        if (!enemyHits[i]) available.push(i);
+    }
+    if (available.length === 0) return;
 
-            let index = available[Math.floor(Math.random() * available.length)];
+    let index = available[Math.floor(Math.random() * available.length)];
 
-            // Попадание?
-            let hit = false;
-            for (let ship of playerShips) {
-                if (ship.includes(index)) {
-                    hit = true;
-                    break;
-                }
-            }
-
-            enemyHits[index] = hit ? 'hit' : 'miss';
-            render();
-
-            // Проверка поражения игрока
-            let allDestroyed = true;
-            for (let ship of playerShips) {
-                for (let cell of ship) {
-                    if (enemyHits[cell] !== 'hit') allDestroyed = false;
-                }
-            }
-            if (allDestroyed) {
-                gameOver = true;
-                document.getElementById('status').innerText = 'Ты проиграл...';
-                return;
-            }
-
-            // Снова ход игрока
-            playerTurn = true;
-            document.getElementById('status').innerText = 'Твой ход';
+    let hit = false;
+    for (let ship of playerShips) {
+        if (ship.includes(index)) {
+            hit = true;
+            break;
         }
+    }
+function shoot(index) {
+    if (!playerTurn || gameOver || playerHits[index]) return;
 
-        function newGame() {
-            playerHits = new Array(100).fill(null);
-            enemyHits = new Array(100).fill(null);
-            playerTurn = true;
-            gameOver = false;
-            document.getElementById('status').innerText = 'Твой ход';
-            render();
+    let hit = false;
+    for (let ship of enemyShips) {
+        if (ship.includes(index)) {
+            hit = true;
+            break;
         }
+    }
+
+    playerHits[index] = hit ? 'hit' : 'miss';
+    render();
+
+    let allDestroyed = true;
+    for (let ship of enemyShips) {
+        for (let cell of ship) {
+            if (playerHits[cell] !== 'hit') {
+                allDestroyed = false;
+                break;
+            }
+        }
+    }
+
+    if (allDestroyed) {
+        gameOver = true;
+        document.getElementById('status').innerText = 'Ты выиграл!';
+        return;
+    }
+
+    playerTurn = false;
+    document.getElementById('status').innerText = 'Ход врага...';
+    setTimeout(enemyMove, 500);
+        }
+    enemyHits[index] = hit ? 'hit' : 'miss';
+    render();
+
+    // Проверка, все ли корабли игрока убиты
+    let allDestroyed = true;
+    for (let ship of playerShips) {
+        for (let cell of ship) {
+            if (enemyHits[cell] !== 'hit') {
+                allDestroyed = false;
+                break;
+            }
+        }
+    }
+
+    if (allDestroyed) {
+        gameOver = true;
+        document.getElementById('status').innerText = 'Ты проиграл...';
+        return;
+    }
+
+    playerTurn = true;
+    document.getElementById('status').innerText = 'Твой ход';
+}
 
         render();
     </script>
