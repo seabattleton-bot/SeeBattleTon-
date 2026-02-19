@@ -13,26 +13,26 @@ const io = new Server(server, { cors: { origin: "*" } });
 
 let rooms = {};
 
-function createBoard() {
-    return Array.from({ length: 10 }, () =>
-        Array.from({ length: 10 }, () => ({
-            ship: false,
-            hit: false
-        }))
-    );
+function checkWin(board){
+    for(let r=0;r<10;r++){
+        for(let c=0;c<10;c++){
+            if(board[r][c].ship && !board[r][c].hit){
+                return false;
+            }
+        }
+    }
+    return true;
 }
 
 io.on("connection", socket => {
 
     socket.on("createRoom", () => {
         const roomId = uuidv4();
-
         rooms[roomId] = {
             players: [socket.id],
             boards: {},
             turn: null
         };
-
         socket.join(roomId);
         socket.emit("roomCreated", roomId);
     });
@@ -40,31 +40,27 @@ io.on("connection", socket => {
     socket.on("joinRoom", roomId => {
         const room = rooms[roomId];
         if (room && room.players.length < 2) {
-
             room.players.push(socket.id);
-            room.boards[room.players[0]] = createBoard();
-            room.boards[room.players[1]] = createBoard();
             room.turn = room.players[0];
-
             socket.join(roomId);
             io.to(roomId).emit("startGame");
         }
     });
 
     socket.on("placeShips", ({ roomId, board }) => {
-        if (rooms[roomId]) {
-            rooms[roomId].boards[socket.id] = board;
-        }
+        const room = rooms[roomId];
+        if (!room) return;
+        room.boards[socket.id] = board;
     });
 
     socket.on("move", ({ roomId, row, col }) => {
         const room = rooms[roomId];
         if (!room) return;
-
         if (room.turn !== socket.id) return;
 
         const opponent = room.players.find(p => p !== socket.id);
-        const cell = room.boards[opponent][row][col];
+        const board = room.boards[opponent];
+        const cell = board[row][col];
 
         if (cell.hit) return;
 
@@ -74,13 +70,18 @@ io.on("connection", socket => {
             room.turn = opponent;
         }
 
+        let winner = null;
+        if (checkWin(board)) {
+            winner = socket.id;
+        }
+
         io.to(roomId).emit("update", {
             boards: room.boards,
-            turn: room.turn
+            turn: room.turn,
+            winner
         });
     });
 
 });
 
 server.listen(process.env.PORT || 3000);
-    
