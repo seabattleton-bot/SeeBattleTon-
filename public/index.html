@@ -1,189 +1,178 @@
-import logging
-from telegram import Update
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
-import random
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Sea Battle Final</title>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<style>
+body{background:#0f172a;color:white;text-align:center;font-family:Arial}
+.board{display:grid;grid-template-columns:repeat(10,30px);gap:2px;justify-content:center;margin:10px}
+.cell{width:30px;height:30px;background:#1e293b;cursor:pointer}
+.ship{background:#475569}
+.hit{background:red}
+.miss{background:#38bdf8}
+button{padding:8px 15px;margin:5px;border:none;border-radius:6px;background:#2563eb;color:white}
+</style>
+</head>
+<body>
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+<h2>Sea Battle Classic</h2>
 
-# --- Классы для логики игры ---
+<button onclick="autoPlace()">Авто расстановка</button>
+<button onclick="startGame()">Начать бой</button>
+<div id="status">Расставьте корабли</div>
+<div id="link"></div>
 
-class BattleShipBoard:
-    def __init__(self):
-        self.size = 10
-        self.board = [['~'] * self.size for _ in range(self.size)]
-        self.ships = []  # [((x1, y1), (x2, y2)), ...]
-        self.busy = set()
-        self.ship_cells = set()
-        self.marked = set()
-    
-    def place_ships_auto(self):
-        """Автоматическая расстановка кораблей"""
-        ships_len = [4] + [3]*2 + [2]*3 + [1]*4
-        tries = 0
-        for L in ships_len:
-            while True:
-                if tries > 1000:
-                    raise Exception("Не могу расставить корабли")
-                orientation = random.choice(['h', 'v'])
-                if orientation == 'h':
-                    x = random.randint(0, self.size - L)
-                    y = random.randint(0, self.size - 1)
-                    ship = [(x+i, y) for i in range(L)]
-                else:
-                    x = random.randint(0, self.size - 1)
-                    y = random.randint(0, self.size - L)
-                    ship = [(x, y+i) for i in range(L)]
-                if all((cx, cy) not in self.busy for cx, cy in ship):
-                    border = set()
-                    for cx, cy in ship:
-                        for dx in [-1, 0, 1]:
-                            for dy in [-1, 0, 1]:
-                                nx, ny = cx+dx, cy+dy
-                                if 0 <= nx < self.size and 0 <= ny < self.size:
-                                    border.add((nx, ny))
-                    if all(b not in self.busy for b in border):
-                        self.ships.append((ship[0], ship[-1]))
-                        for cell in ship:
-                            self.ship_cells.add(cell)
-                        self.busy.update(border)
-                        break 
-                tries += 1
+<div style="display:flex;justify-content:center;gap:30px;flex-wrap:wrap">
+<div>
+<h3>Твое поле</h3>
+<div id="playerBoard" class="board"></div>
+</div>
+<div>
+<h3>Поле врага</h3>
+<div id="enemyBoard" class="board"></div>
+</div>
+</div>
 
-    def receive_shot(self, x, y):
-        if not (0 <= x < self.size and 0 <= y < self.size):
-            return 'error'
-        if (x, y) in self.marked:
-            return 'error'
-        self.marked.add((x, y))
-        if (x, y) in self.ship_cells:
-            for (start, end) in self.ships:
-                ship_cells = []
-                if start[0] == end[0]:  # Вертикальный
-                    xs = start[0]
-                    for yy in range(start[1], end[1]+1):
-                        ship_cells.append((xs, yy))
-                else:
-                    ys = start[1]
-                    for xx in range(start[0], end[0]+1):
-                        ship_cells.append((xx, ys))
-                if (x, y) in ship_cells:
-                    if all(c in self.marked for c in ship_cells):
-                        for cx, cy in ship_cells:
-                            for dx in [-1, 0, 1]:
-                                for dy in [-1, 0, 1]:
-                                    nx, ny = cx+dx, cy+dy
-                                    if (0 <= nx < self.size and 0 <= ny < self.size
-                                        and (nx, ny) not in self.marked
-                                        and (nx, ny) not in self.ship_cells):
-                                        self.marked.add((nx, ny))
-                        return 'kill'
-                    else:
-                        return 'hit'
-        return 'miss'
+<script>
+const socket=io();
+let roomId=null,myId=null,myTurn=false;
+let boards={};
 
-    def display(self, show_ships=False):
-        s = '  ' + ' '.join('АБВГДЕЖЗИК'[i] for i in range(self.size)) + '\n'
-        for y in range(self.size):
-            s += f"{y+1:2}"
-            for x in range(self.size):
-                cell = (x, y)
-                if cell in self.marked:
-                    if cell in self.ship_cells:
-                        s += " ☒"
-                    else:
-                        s += " ·"
-                elif show_ships and cell in self.ship_cells:
-                    s += " ■"
-                else:
-                    s += " ~"
-            s += '\n'
-        return s
+const ships=[4,3,3,2,2,2,1,1,1,1];
+let placingIndex=0;
+let horizontal=true;
 
-    def is_defeated(self):
-        return all(cell in self.marked for cell in self.ship_cells)
+function createEmptyBoard(){
+ return Array.from({length:10},()=>Array.from({length:10},()=>({ship:false,hit:false})));
+}
 
-# --- Telegram Bot ---
-user_games = {}
+let playerBoardData=createEmptyBoard();
 
-def start(update: Update, context: CallbackContext):
-    chat_id = update.message.chat_id
-    user_games[chat_id] = {
-        'player': BattleShipBoard(),
-        'bot': BattleShipBoard(),
-        'state': 'prepping',
+const playerBoard=document.getElementById("playerBoard");
+const enemyBoard=document.getElementById("enemyBoard");
+const statusEl=document.getElementById("status");
+
+function createBoardHTML(element,clickable=false,isPlayer=false){
+ element.innerHTML="";
+ for(let r=0;r<10;r++){
+  for(let c=0;c<10;c++){
+   const cell=document.createElement("div");
+   cell.className="cell";
+   if(clickable){
+    cell.onclick=()=>{ if(isPlayer) placeShip(r,c); else attack(r,c); }
+   }
+   element.appendChild(cell);
+  }
+ }
+}
+
+function renderBoard(board,element,showShips=false){
+ const cells=element.children;
+ for(let r=0;r<10;r++){
+  for(let c=0;c<10;c++){
+   const cell=cells[r*10+c];
+   const data=board[r][c];
+   cell.className="cell";
+   if(data.ship&&showShips) cell.classList.add("ship");
+   if(data.hit&&data.ship) cell.classList.add("hit");
+   if(data.hit&&!data.ship) cell.classList.add("miss");
+  }
+ }
+}
+
+function canPlace(board,row,col,length,h){
+ for(let i=0;i<length;i++){
+  let r=row+(h?0:i),c=col+(h?i:0);
+  if(r>=10||c>=10) return false;
+  for(let dr=-1;dr<=1;dr++){
+   for(let dc=-1;dc<=1;dc++){
+    let nr=r+dr,nc=c+dc;
+    if(nr>=0&&nr<10&&nc>=0&&nc<10&&board[nr][nc].ship) return false;
+   }
+  }
+ }
+ return true;
+}
+
+function placeShip(row,col){
+ if(placingIndex>=ships.length) return;
+ let len=ships[placingIndex];
+ if(!canPlace(playerBoardData,row,col,len,horizontal)) return;
+ for(let i=0;i<len;i++){
+  let r=row+(horizontal?0:i);
+  let c=col+(horizontal?i:0);
+  playerBoardData[r][c].ship=true;
+ }
+ placingIndex++;
+ renderBoard(playerBoardData,playerBoard,true);
+ if(placingIndex===ships.length) statusEl.innerText="Можно начать бой";
+}
+
+function autoPlace(){
+ playerBoardData=createEmptyBoard();
+ placingIndex=0;
+ for(let ship of ships){
+  let placed=false;
+  while(!placed){
+   let r=Math.floor(Math.random()*10);
+   let c=Math.floor(Math.random()*10);
+   horizontal=Math.random()<0.5;
+   if(canPlace(playerBoardData,r,c,ship,horizontal)){
+    for(let i=0;i<ship;i++){
+     let rr=r+(horizontal?0:i);
+     let cc=c+(horizontal?i:0);
+     playerBoardData[rr][cc].ship=true;
     }
-    user_games[chat_id]['player'].place_ships_auto()
-    user_games[chat_id]['bot'].place_ships_auto()
-    update.message.reply_text(
-        "Ваше поле (авто-расстановка):\n" +
-        user_games[chat_id]['player'].display(show_ships=True) +
-        "Ваш ход! Напишите например: А5"
-    )
-    user_games[chat_id]['state'] = 'playing'
+    placed=true;
+   }
+  }
+ }
+ placingIndex=ships.length;
+ renderBoard(playerBoardData,playerBoard,true);
+ statusEl.innerText="Можно начать бой";
+}
 
-def player_move(update: Update, context: CallbackContext):
-    chat_id = update.message.chat_id
-    if chat_id not in user_games or user_games[chat_id]['state'] != 'playing':
-        update.message.reply_text('Введите /start для начала игры.')
-        return
-    text = update.message.text.strip().upper()
-    if len(text) < 2:
-        update.message.reply_text('Ход в формате: Б3')
-        return
-    x = 'АБВГДЕЖЗИК'.find(text[0])
-    try:
-        y = int(text[1:]) - 1
-    except:
-        update.message.reply_text('Ход в формате: Б3')
-        return
-    if x == -1 or not (0 <= y < 10):
-        update.message.reply_text('Некорректные координаты, напишите например: Д4')
-        return
-    res = user_games[chat_id]['bot'].receive_shot(x, y)
-    msg = f"Вы стреляете по: {text} — "
-    if res == 'miss':
-        msg += "мимо.\n"
-    elif res == 'hit':
-        msg += "попадание!\n"
-    elif res == 'kill':
-        msg += "корабль потоплен!"
-    elif res == 'error':
-        update.message.reply_text("Вы уже стреляли сюда!")
-        return
-    if user_games[chat_id]['bot'].is_defeated():
-        msg += "\nВы победили!"
-        update.message.reply_text(msg)
-        user_games[chat_id]['state'] = 'done'
-        return
-    update.message.reply_text(
-        msg + "\nПоле противника:\n" +
-        user_games[chat_id]['bot'].display()
-    )
-    while True:
-        bx, by = random.randint(0, 9), random.randint(0, 9)
-        if (bx, by) not in user_games[chat_id]['player'].marked:
-            break
-    res = user_games[chat_id]['player'].receive_shot(bx, by)
-    pos = f"{'АБВГДЕЖЗИК'[bx]}{by+1}"
-    msg = f"\nБот стреляет по: {pos} — "
-    if res == 'miss':
-        msg += "мимо."
-    elif res == 'hit':
-        msg += "попадание!"
-    elif res == 'kill':
-        msg += "корабль потоплен!"
-    if user_games[chat_id]['player'].is_defeated():
-        msg += "\nПобедил бот!"
-        update.message.reply_text(msg)
-        user_games[chat_id]['state'] = 'done'
-        return
-    update.message.reply_text(
-        msg +
-        "\nВаше поле:\n" +
-        user_games[chat_id]['player'].display(show_ships=True) +
-        "\nВаш ход! (например: Ж7)"
-    )
+function startGame(){
+ if(placingIndex<ships.length){alert("Расставьте все корабли!");return;}
+ socket.emit("placeShips",{roomId,board:playerBoardData});
+ statusEl.innerText="Ждем второго игрока...";
+}
 
-def main():
-    import os
-      
+function attack(r,c){
+ if(!myTurn) return;
+ socket.emit("move",{roomId,row:r,col:c});
+}
+
+socket.on("connect",()=>{myId=socket.id});
+socket.on("roomCreated",id=>{
+ roomId=id;
+ const url=location.origin+"?room="+id;
+ document.getElementById("link").innerHTML="<input value='"+url+"' style='width:95%'>";
+});
+const params=new URLSearchParams(location.search);
+if(params.get("room")){roomId=params.get("room");socket.emit("joinRoom",roomId);}
+
+socket.on("startGame",()=>{statusEl.innerText="Игра началась!"});
+
+socket.on("update",data=>{
+ boards=data.boards;
+ myTurn=data.turn===myId;
+ renderBoard(boards[myId],playerBoard,true);
+ const opponent=Object.keys(boards).find(id=>id!==myId);
+ renderBoard(boards[opponent],enemyBoard,false);
+
+ if(data.winner){
+  statusEl.innerText=data.winner===myId?"Ты победил!":"Ты проиграл!";
+  myTurn=false;
+ } else {
+  statusEl.innerText=myTurn?"Твой ход":"Ход соперника";
+ }
+});
+
+createBoardHTML(playerBoard,true,true);
+createBoardHTML(enemyBoard,true,false);
+</script>
+
+</body>
+    </html>
