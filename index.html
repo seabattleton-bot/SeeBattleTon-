@@ -2,271 +2,67 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Морской Бой</title>
+    <title>Морской бой</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        body { font-family: Arial; text-align: center; background: #0a1f44; color: white; margin: 0; padding: 10px; }
-        h1 { color: #4ec0e9; font-size: 28px; }
-        .board-container { background: #0f4c81; padding: 15px; border-radius: 15px; margin: 10px; }
-        .grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px; width: min(330px, 95vw); aspect-ratio: 1; margin: 0 auto; }
-        .cell { background: #2a6f9c; border: 1px solid #4ec0e9; aspect-ratio: 1; border-radius: 4px; cursor: pointer; }
-        .cell.setup-ship { background: #4a4a4a; border-color: #ffd700; }
-        .cell.enemy:hover { background: #ff6b6b; }
-        .cell.ship { background: #4a4a4a; }
-        .cell.hit { background: #ff4444 !important; }
-        .cell.miss { background: #87CEEB !important; }
-        .status-panel { background: #16213e; padding: 12px; border-radius: 12px; margin: 10px; }
-        button { background: #4ec0e9; color: white; border: none; padding: 12px 25px; border-radius: 25px; font-size: 16px; margin: 5px; cursor: pointer; }
-        .hidden { display: none; }
-        .ships-list { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; margin: 10px 0; }
-        .ship-item { background: #2c3e50; padding: 5px 10px; border-radius: 15px; font-size: 14px; }
-        .ship-item.placed { opacity: 0.5; text-decoration: line-through; }
-        .ship-item.current { border: 2px solid gold; }
+        body { text-align: center; background: #0a1f44; color: white; font-family: Arial; }
+        .board { display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px; width: 300px; margin: 20px auto; }
+        .cell { aspect-ratio: 1; background: #2a6f9c; border: 1px solid #4ec0e9; cursor: pointer; }
+        .hit { background: #ff4444; }
+        .miss { background: #87CEEB; }
+        .ship { background: #4a4a4a; }
+        button { padding: 10px 20px; background: #4ec0e9; border: none; border-radius: 10px; margin: 5px; }
     </style>
 </head>
 <body>
-    <h1>⚓ МОРСКОЙ БОЙ ⚓</h1>
-
-    <div id="setupScreen">
-        <div class="status-panel">
-            <div id="setupStatus">Расставь корабли</div>
-            <div class="ships-list" id="shipsList"></div>
-        </div>
-        <div class="board-container">
-            <div class="grid" id="setupBoard"></div>
-        </div>
-        <div>
-            <button id="randomBtn">🎲 Случайно</button>
-            <button id="resetBtn">🔄 Сброс</button>
-            <button id="startGameBtn" disabled>⚔️ Старт</button>
-        </div>
-    </div>
-
-    <div id="gameScreen" class="hidden">
-        <div class="status-panel" id="gameStatus">Твой ход!</div>
-        <div class="board-container">
-            <div class="grid" id="enemyBoard"></div>
-        </div>
-        <div class="board-container">
-            <div class="grid" id="playerBoard"></div>
-        </div>
-        <button id="newGameBtn">🔄 Новая игра</button>
-    </div>
+    <h2>⚓ МОРСКОЙ БОЙ ⚓</h2>
+    <div id="status">Твой ход</div>
+    <div class="board" id="enemyBoard"></div>
+    <div class="board" id="playerBoard"></div>
+    <button onclick="newGame()">Новая игра</button>
 
     <script>
         Telegram.WebApp.ready();
         Telegram.WebApp.expand();
 
-        const SHIP_SIZES = [4,3,3,2,2,2,1,1,1,1];
-        const SHIP_NAMES = ['Линкор','Крейсер','Крейсер','Эсминец','Эсминец','Эсминец','Катер','Катер','Катер','Катер'];
+        let playerShips = [[0,1,2,3],[10,11,12],[20,21,22],[30,31],[40,41],[50,51],[60],[70],[80],[90]];
+        let enemyShips = [[5,6,7,8],[15,16,17],[25,26,27],[35,36],[45,46],[55,56],[65],[75],[85],[95]];
 
-        let currentShip = 0;
-        let placed = [];
-        let setupBoard = new Array(100).fill(null);
-        let playerShips = [], enemyShips = [], playerHits = [], enemyHits = [];
-        let gameOver = false, playerTurn = true;
+        let playerHits = new Array(100).fill(null);
+        let enemyHits = new Array(100).fill(null);
+        let playerTurn = true;
+        let gameOver = false;
 
-        renderSetup();
-
-        function renderSetup() {
-            let html = '';
-            for (let i = 0; i < 100; i++) {
-                let cls = 'cell' + (setupBoard[i] === 'ship' ? ' setup-ship' : '');
-                html += `<div class="${cls}" onclick="tryPlace(${i})"></div>`;
-            }
-            document.getElementById('setupBoard').innerHTML = html;
-
-            let listHtml = '';
-            for (let i = 0; i < SHIP_SIZES.length; i++) {
-                listHtml += `<div class="ship-item ${placed.includes(i) ? 'placed' : ''} ${i === currentShip && !placed.includes(i) ? 'current' : ''}">${SHIP_NAMES[i]} (${SHIP_SIZES[i]})</div>`;
-            }
-            document.getElementById('shipsList').innerHTML = listHtml;
-            document.getElementById('startGameBtn').disabled = placed.length < SHIP_SIZES.length;
-        }
-
-        function tryPlace(index) {
-            if (currentShip >= SHIP_SIZES.length) return;
-            let x = index % 10, y = Math.floor(index / 10), size = SHIP_SIZES[currentShip];
-            let positions = [];
-
-            if (x + size <= 10) {
-                let pos = [];
-                for (let i = 0; i < size; i++) pos.push(y * 10 + (x + i));
-                if (canPlace(pos)) positions = pos;
-            }
-            if (positions.length === 0 && y + size <= 10) {
-                let pos = [];
-                for (let i = 0; i < size; i++) pos.push((y + i) * 10 + x);
-                if (canPlace(pos)) positions = pos;
-            }
-
-            if (positions.length) {
-                positions.forEach(p => setupBoard[p] = 'ship');
-                placed.push(currentShip);
-                while (currentShip < SHIP_SIZES.length && placed.includes(currentShip)) currentShip++;
-                renderSetup();
-            } else alert('Нельзя поставить!');
-        }
-
-        function canPlace(pos) {
-            for (let p of pos) if (setupBoard[p] === 'ship') return false;
-            for (let p of pos) {
-                let x = p % 10, y = Math.floor(p / 10);
-                for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-                    let nx = x + dx, ny = y + dy;
-                    if (nx >= 0 && nx < 10 && ny >= 0 && ny < 10) {
-                        let n = ny * 10 + nx;
-                        if (setupBoard[n] === 'ship' && !pos.includes(n)) return false;
-                    }
-                }
-            }
-            return true;
-        }
-
-        function randomPlace() {
-            setupBoard = new Array(100).fill(null);
-            placed = [];
-            for (let size of SHIP_SIZES) {
-                let attempts = 0;
-                while (attempts < 500) {
-                    attempts++;
-                    let dir = Math.floor(Math.random() * 2);
-                    let x = Math.floor(Math.random() * (dir === 0 ? 10 - size : 10));
-                    let y = Math.floor(Math.random() * (dir === 1 ? 10 - size : 10));
-                    let pos = [];
-                    if (dir === 0) for (let i = 0; i < size; i++) pos.push(y * 10 + (x + i));
-                    else for (let i = 0; i < size; i++) pos.push((y + i) * 10 + x);
-                    if (canPlace(pos)) {
-                        pos.forEach(p => setupBoard[p] = 'ship');
-                        break;
-                    }
-                }
-            }
-            for (let i = 0; i < SHIP_SIZES.length; i++) placed.push(i);
-            currentShip = SHIP_SIZES.length;
-            renderSetup();
-        }
-
-        function startGame() {
-            playerShips = [];
-            let visited = new Array(100).fill(false);
-            for (let i = 0; i < 100; i++) {
-                if (setupBoard[i] === 'ship' && !visited[i]) {
-                    let ship = [i];
-                    visited[i] = true;
-                    let x = i % 10, y = Math.floor(i / 10);
-                    for (let dx = 1; dx < 4; dx++) {
-                        let n = y * 10 + (x + dx);
-                        if (x + dx < 10 && setupBoard[n] === 'ship' && !visited[n]) {
-                            ship.push(n);
-                            visited[n] = true;
-                        } else break;
-                    }
-                    if (ship.length === 1) {
-                        for (let dy = 1; dy < 4; dy++) {
-                            let n = (y + dy) * 10 + x;
-                            if (y + dy < 10 && setupBoard[n] === 'ship' && !visited[n]) {
-                                ship.push(n);
-                                visited[n] = true;
-                            } else break;
-                        }
-                    }
-                    playerShips.push(ship);
-                }
-            }
-
-            enemyShips = [];
-            let enemyBoard = new Array(100).fill(null);
-            for (let size of SHIP_SIZES) {
-                let attempts = 0;
-                while (attempts < 500) {
-                    attempts++;
-                    let dir = Math.floor(Math.random() * 2);
-                    let x = Math.floor(Math.random() * (dir === 0 ? 10 - size : 10));
-                    let y = Math.floor(Math.random() * (dir === 1 ? 10 - size : 10));
-                    let pos = [];
-                    if (dir === 0) for (let i = 0; i < size; i++) pos.push(y * 10 + (x + i));
-                    else for (let i = 0; i < size; i++) pos.push((y + i) * 10 + x);
-                    let valid = true;
-                    for (let p of pos) if (enemyBoard[p] === 'ship') valid = false;
-                    if (valid) {
-                        pos.forEach(p => enemyBoard[p] = 'ship');
-                        enemyShips.push(pos);
-                        break;
-                    }
-                }
-            }
-
-            playerHits = new Array(100).fill(null);
-            enemyHits = new Array(100).fill(null);
-            gameOver = false; playerTurn = true;
-
-            document.getElementById('setupScreen').classList.add('hidden');
-            document.getElementById('gameScreen').classList.remove('hidden');
-            renderGame();
-        }
-
-        function renderGame() {
+        function render() {
             let playerHtml = '', enemyHtml = '';
-            for (let i = 0; i < 100; i++) {
-                let isShip = playerShips.some(s => s.includes(i));
-                playerHtml += `<div class="cell ${isShip ? 'ship' : ''} ${enemyHits[i] === 'hit' ? 'hit' : ''} ${enemyHits[i] === 'miss' ? 'miss' : ''}"></div>`;
 
-                let canShoot = !playerHits[i] && !gameOver && playerTurn;
-                enemyHtml += `<div class="cell enemy ${playerHits[i] === 'hit' ? 'hit' : ''} ${playerHits[i] === 'miss' ? 'miss' : ''}" onclick="${canShoot ? `shoot(${i})` : ''}"></div>`;
+            for (let i = 0; i < 100; i++) {
+                let isPlayerShip = playerShips.some(s => s.includes(i));
+                playerHtml += `<div class="cell ${isPlayerShip ? 'ship' : ''} ${enemyHits[i] === 'hit' ? 'hit' : ''} ${enemyHits[i] === 'miss' ? 'miss' : ''}"></div>`;
+
+                let canShoot = playerTurn && !gameOver && !playerHits[i];
+                enemyHtml += `<div class="cell ${playerHits[i] === 'hit' ? 'hit' : ''} ${playerHits[i] === 'miss' ? 'miss' : ''}" onclick="${canShoot ? `shoot(${i})` : ''}"></div>`;
             }
+
             document.getElementById('playerBoard').innerHTML = playerHtml;
             document.getElementById('enemyBoard').innerHTML = enemyHtml;
         }
 
-        function shoot(index) {
-            if (!playerTurn || gameOver || playerHits[index]) return;
+        function shoot(i) {
+            if (!playerTurn || gameOver || playerHits[i]) return;
 
-            let hit = false;
-            for (let ship of enemyShips) {
-                if (ship.includes(index)) {
-                    hit = true;
-                    playerHits[index] = 'hit';
+            let hit = enemyShips.some(s => s.includes(i));
+            playerHits[i] = hit ? 'hit' : 'miss';
+            render();
 
-                    let allHit = true;
-                    for (let cell of ship) {
-                        if (playerHits[cell] !== 'hit') allHit = false;
-                    }
-
-                    if (allHit) {
-                        for (let cell of ship) {
-                            let x = cell % 10, y = Math.floor(cell / 10);
-                            for (let dy = -1; dy <= 1; dy++) {
-                                for (let dx = -1; dx <= 1; dx++) {
-                                    let nx = x + dx, ny = y + dy;
-                                    if (nx >= 0 && nx < 10 && ny >= 0 && ny < 10) {
-                                        let n = ny * 10 + nx;
-                                        if (!playerHits[n]) playerHits[n] = 'miss';
-                                    }
-                                }
-                            }
-                        }
-                        enemyShips = enemyShips.filter(s => !s.includes(index));
-                    }
-                    break;
-                }
-            }
-
-            if (!hit) {
-                playerHits[index] = 'miss';
-            }
-
-            renderGame();
-
-            if (enemyShips.length === 0) {
+            if (enemyShips.every(s => s.every(c => playerHits[c] === 'hit'))) {
                 gameOver = true;
-                document.getElementById('gameStatus').innerHTML = 'Ты победил!';
+                document.getElementById('status').innerText = 'Ты выиграл!';
                 return;
             }
 
             playerTurn = false;
-            document.getElementById('gameStatus').innerHTML = 'Ход врага...';
+            document.getElementById('status').innerText = 'Ход врага...';
             setTimeout(enemyMove, 500);
         }
 
@@ -275,64 +71,32 @@
 
             let available = [];
             for (let i = 0; i < 100; i++) if (!enemyHits[i]) available.push(i);
-            if (available.length === 0) return;
+            let i = available[Math.floor(Math.random() * available.length)];
 
-            let index = available[Math.floor(Math.random() * available.length)];
+            let hit = playerShips.some(s => s.includes(i));
+            enemyHits[i] = hit ? 'hit' : 'miss';
+            render();
 
-            let hit = false;
-            for (let ship of playerShips) {
-                if (ship.includes(index)) {
-                    hit = true;
-                    enemyHits[index] = 'hit';
-
-                    let allHit = true;
-                    for (let cell of ship) {
-                        if (enemyHits[cell] !== 'hit') allHit = false;
-                    }
-
-                    if (allHit) {
-                        for (let cell of ship) {
-                            let x = cell % 10, y = Math.floor(cell / 10);
-                            for (let dy = -1; dy <= 1; dy++) {
-                                for (let dx = -1; dx <= 1; dx++) {
-                                    let nx = x + dx, ny = y + dy;
-                                    if (nx >= 0 && nx < 10 && ny >= 0 && ny < 10) {
-                                        let n = ny * 10 + nx;
-                                        if (!enemyHits[n]) enemyHits[n] = 'miss';
-                                    }
-                                }
-                            }
-                        }
-                        playerShips = playerShips.filter(s => !s.includes(index));
-                    }
-                    break;
-                }
-            }
-
-            if (!hit) {
-                enemyHits[index] = 'miss';
-            }
-
-            renderGame();
-
-            if (playerShips.length === 0) {
+            if (playerShips.every(s => s.every(c => enemyHits[c] === 'hit'))) {
                 gameOver = true;
-                document.getElementById('gameStatus').innerHTML = 'Ты проиграл...';
+                document.getElementById('status').innerText = 'Ты проиграл...';
                 return;
             }
 
             playerTurn = true;
-            document.getElementById('gameStatus').innerHTML = 'Твой ход!';
+            document.getElementById('status').innerText = 'Твой ход';
         }
 
-        document.getElementById('randomBtn').onclick = randomPlace;
-        document.getElementById('resetBtn').onclick = () => { setupBoard = new Array(100).fill(null); placed = []; currentShip = 0; renderSetup(); };
-        document.getElementById('startGameBtn').onclick = startGame;
-        document.getElementById('newGameBtn').onclick = () => {
-            document.getElementById('setupScreen').classList.remove('hidden');
-            document.getElementById('gameScreen').classList.add('hidden');
-            setupBoard = new Array(100).fill(null); placed = []; currentShip = 0; renderSetup();
-        };
+        function newGame() {
+            playerHits = new Array(100).fill(null);
+            enemyHits = new Array(100).fill(null);
+            playerTurn = true;
+            gameOver = false;
+            document.getElementById('status').innerText = 'Твой ход';
+            render();
+        }
+
+        render();
     </script>
 </body>
-                                             </html>
+</html>
