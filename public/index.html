@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Sea Battle</title>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<style>
+body { background:#0f172a; color:white; text-align:center; font-family:Arial;}
+button{padding:10px 20px;margin:10px;}
+</style>
+</head>
+<body>
+
+<h2>Sea Battle Online</h2>
+<button onclick="createRoom()">Создать игру</button>
+<div id="link"></div>
+
+<script>
+const socket = io();
+
+function createRoom(){
+    socket.emit("createRoom");
+}
+
+socket.on("roomCreated", roomId=>{
+    const url = location.origin + "?room=" + roomId;
+    document.getElementById("link").innerHTML =
+        "<p>Отправь другу:</p><input value='"+url+"' style='width:95%'>";
+});
+
+const params = new URLSearchParams(location.search);
+const room = params.get("room");
+
+if(room){
+    socket.emit("joinRoom", room);
+}
+
+socket.on("startGame", ()=>{
+    alert("Игра началась!");
+});
+</script>
+
+</body>
+</html>
