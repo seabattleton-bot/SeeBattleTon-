@@ -5,8 +5,28 @@
 <title>Sea Battle</title>
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <style>
-body { background:#0f172a; color:white; text-align:center; font-family:Arial;}
-button{padding:10px 20px;margin:10px;}
+body {
+    background:#0f172a;
+    color:white;
+    text-align:center;
+    font-family:Arial;
+}
+.board {
+    display:grid;
+    grid-template-columns:repeat(10,30px);
+    gap:2px;
+    justify-content:center;
+    margin:10px;
+}
+.cell {
+    width:30px;
+    height:30px;
+    background:#1e293b;
+}
+.ship { background:#475569; }
+.hit { background:red; }
+.miss { background:#38bdf8; }
+button { padding:10px 20px; margin:10px; }
 </style>
 </head>
 <body>
@@ -15,30 +35,115 @@ button{padding:10px 20px;margin:10px;}
 <button onclick="createRoom()">Создать игру</button>
 <div id="link"></div>
 
+<div id="status"></div>
+
+<div style="display:flex;justify-content:center;gap:30px;flex-wrap:wrap;">
+    <div>
+        <h3>Твое поле</h3>
+        <div id="playerBoard" class="board"></div>
+    </div>
+    <div>
+        <h3>Поле врага</h3>
+        <div id="enemyBoard" class="board"></div>
+    </div>
+</div>
+
 <script>
 const socket = io();
+let roomId = null;
+let myTurn = false;
+let myId = null;
+let boards = {};
+
+function createBoardHTML(element, clickable=false) {
+    element.innerHTML = "";
+    for(let r=0;r<10;r++){
+        for(let c=0;c<10;c++){
+            const cell = document.createElement("div");
+            cell.className="cell";
+            cell.dataset.row=r;
+            cell.dataset.col=c;
+
+            if(clickable){
+                cell.onclick=()=>attack(r,c);
+            }
+
+            element.appendChild(cell);
+        }
+    }
+}
+
+function renderBoard(board, element, showShips=false){
+    const cells = element.children;
+    for(let r=0;r<10;r++){
+        for(let c=0;c<10;c++){
+            const index = r*10+c;
+            const cell = cells[index];
+            const data = board[r][c];
+
+            cell.className="cell";
+
+            if(data.ship && showShips)
+                cell.classList.add("ship");
+
+            if(data.hit && data.ship)
+                cell.classList.add("hit");
+
+            if(data.hit && !data.ship)
+                cell.classList.add("miss");
+        }
+    }
+}
 
 function createRoom(){
     socket.emit("createRoom");
 }
 
-socket.on("roomCreated", roomId=>{
-    const url = location.origin + "?room=" + roomId;
+socket.on("connect", ()=>{
+    myId = socket.id;
+});
+
+socket.on("roomCreated", id=>{
+    roomId = id;
+    const url = location.origin + "?room=" + id;
     document.getElementById("link").innerHTML =
         "<p>Отправь другу:</p><input value='"+url+"' style='width:95%'>";
 });
 
 const params = new URLSearchParams(location.search);
 const room = params.get("room");
-
 if(room){
+    roomId = room;
     socket.emit("joinRoom", room);
 }
 
 socket.on("startGame", ()=>{
-    alert("Игра началась!");
+    document.getElementById("status").innerText="Игра началась!";
 });
+
+socket.on("update", data=>{
+    boards = data.boards;
+    myTurn = data.turn === myId;
+
+    renderBoard(boards[myId], playerBoard, true);
+
+    const opponent = Object.keys(boards).find(id=>id!==myId);
+    renderBoard(boards[opponent], enemyBoard, false);
+
+    document.getElementById("status").innerText =
+        myTurn ? "Твой ход" : "Ход соперника";
+});
+
+function attack(r,c){
+    if(!myTurn) return;
+    socket.emit("move", {roomId,row:r,col:c});
+}
+
+createBoardHTML(playerBoard);
+createBoardHTML(enemyBoard,true);
+
 </script>
 
 </body>
-</html>
+    </html>
+    
